@@ -418,6 +418,7 @@ async def test_heat_notification_sensor_primary(
     assert entity_entry
     assert entity_entry.entity_category is None
 
+
 @pytest.mark.usefixtures("wallmote_central_scene", "integration")
 async def test_power_management_battery_charging_sensor(
     hass: HomeAssistant,
