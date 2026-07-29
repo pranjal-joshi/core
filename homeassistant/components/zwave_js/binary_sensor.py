@@ -10,9 +10,9 @@ from zwave_js_server.const.command_class.lock import DOOR_STATUS_PROPERTY
 from zwave_js_server.const.command_class.notification import (
     CC_SPECIFIC_NOTIFICATION_TYPE,
     AccessControlNotificationEvent,
-    HeatAlarmNotificationEvent,
     NotificationEvent,
     NotificationType,
+    PowerManagementNotificationEvent,
     SmokeAlarmNotificationEvent,
 )
 from zwave_js_server.model.driver import Driver
@@ -75,17 +75,6 @@ NOTIFICATION_WATER_VALVE = "15"
 NOTIFICATION_WEATHER = "16"
 NOTIFICATION_IRRIGATION = "17"
 NOTIFICATION_GAS = "18"
-
-# Generic device classes where heat notifications represent primary
-# functionality rather than diagnostic.
-# https://github.com/zwave-js/backlog/issues/119#issuecomment-3096168116
-HEAT_PRIMARY_DEVICE_CLASSES: set[str | int] = {
-    "Appliance",
-    "Notification Sensor",
-    "Thermostat",
-    "Multilevel Sensor",
-    "Alarm Sensor",
-}
 
 # Deprecated/legacy synthetic Access Control door state notification
 # event IDs that don't exist in zwave-js-server
@@ -239,6 +228,7 @@ MIGRATED_NOTIFICATION_TYPES = {
     NotificationType.SMOKE_ALARM,
     NotificationType.ACCESS_CONTROL,
     NotificationType.HEAT_ALARM,
+    NotificationType.POWER_MANAGEMENT,
 }
 
 NOTIFICATION_SENSOR_MAPPINGS: tuple[NotificationZWaveJSEntityDescription, ...] = (
@@ -276,6 +266,24 @@ NOTIFICATION_SENSOR_MAPPINGS: tuple[NotificationZWaveJSEntityDescription, ...] =
     NotificationZWaveJSEntityDescription(
         # NotificationType 3: Carbon Dioxide - All other State Id's
         key=NOTIFICATION_CARBON_DIOXIDE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    NotificationZWaveJSEntityDescription(
+        # NotificationType 4: Heat - State Id's 1, 2, 5, 6 (heat/underheat)
+        key=NOTIFICATION_HEAT,
+        states={1, 2, 5, 6},
+        device_class=BinarySensorDeviceClass.HEAT,
+    ),
+    NotificationZWaveJSEntityDescription(
+        # NotificationType 4: Heat - State ID's 8, A, B
+        key=NOTIFICATION_HEAT,
+        states={8, 10, 11},
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    NotificationZWaveJSEntityDescription(
+        # NotificationType 4: Heat - All other State Id's
+        key=NOTIFICATION_HEAT,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     NotificationZWaveJSEntityDescription(
@@ -320,36 +328,6 @@ NOTIFICATION_SENSOR_MAPPINGS: tuple[NotificationZWaveJSEntityDescription, ...] =
         key=NOTIFICATION_HOME_SECURITY,
         states={7, 8},
         device_class=BinarySensorDeviceClass.MOTION,
-    ),
-    NotificationZWaveJSEntityDescription(
-        # NotificationType 8: Power Management -
-        # State Id's 2, 3 (Mains status)
-        key=NOTIFICATION_POWER_MANAGEMENT,
-        not_states={2},
-        states={3},
-        device_class=BinarySensorDeviceClass.PLUG,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    NotificationZWaveJSEntityDescription(
-        # NotificationType 8: Power Management -
-        # State Id's 6, 7, 8, 9 (power status)
-        key=NOTIFICATION_POWER_MANAGEMENT,
-        states={6, 7, 8, 9},
-        device_class=BinarySensorDeviceClass.SAFETY,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    NotificationZWaveJSEntityDescription(
-        # NotificationType 8: Power Management -
-        # State Id's 10, 11, 17 (Battery maintenance status)
-        key=NOTIFICATION_POWER_MANAGEMENT,
-        states={10, 11, 17},
-        device_class=BinarySensorDeviceClass.BATTERY,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    NotificationZWaveJSEntityDescription(
-        # NotificationType 8: Power Management - All other State Id's
-        key=NOTIFICATION_POWER_MANAGEMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     NotificationZWaveJSEntityDescription(
         # NotificationType 9: System - State Id's 1, 2, 3, 4, 6, 7
@@ -1662,6 +1640,153 @@ DISCOVERY_SCHEMAS: list[NewZWaveDiscoverySchema] = [
                 HeatAlarmNotificationEvent.MAINTENANCE_STATUS_REPLACEMENT_REQUIRED_END_OF_LIFE,
                 HeatAlarmNotificationEvent.DUST_IN_DEVICE_STATUS_MAINTENANCE_REQUIRED_DUST_IN_DEVICE,
                 HeatAlarmNotificationEvent.PERIODIC_INSPECTION_STATUS_MAINTENANCE_REQUIRED_PLANNED_PERIODIC_INSPECTION,
+            },
+        ),
+        entity_class=ZWaveNotificationBinarySensor,
+    ),
+    NewZWaveDiscoverySchema(
+        platform=Platform.BINARY_SENSOR,
+        primary_value=ZWaveValueDiscoverySchema(
+            command_class={CommandClass.NOTIFICATION},
+            type={ValueType.NUMBER},
+            any_available_states_keys={
+                PowerManagementNotificationEvent.MAINS_STATUS_AC_MAINS_RE_CONNECTED
+            },
+            any_available_cc_specific={
+                (CC_SPECIFIC_NOTIFICATION_TYPE, NotificationType.POWER_MANAGEMENT)
+            },
+        ),
+        allow_multi=True,
+        entity_description=NotificationZWaveJSEntityDescription(
+            # NotificationType 8: Power Management - State Id 3 (Mains re-connected),
+            # with State Id 2 (Mains disconnected) as its off state
+            key=NOTIFICATION_POWER_MANAGEMENT,
+            not_states={
+                PowerManagementNotificationEvent.IDLE,
+                PowerManagementNotificationEvent.MAINS_STATUS_AC_MAINS_DISCONNECTED,
+            },
+            states={
+                PowerManagementNotificationEvent.MAINS_STATUS_AC_MAINS_RE_CONNECTED
+            },
+            device_class=BinarySensorDeviceClass.PLUG,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+        entity_class=ZWaveNotificationBinarySensor,
+    ),
+    NewZWaveDiscoverySchema(
+        platform=Platform.BINARY_SENSOR,
+        primary_value=ZWaveValueDiscoverySchema(
+            command_class={CommandClass.NOTIFICATION},
+            type={ValueType.NUMBER},
+            any_available_states_keys={
+                PowerManagementNotificationEvent.OVER_CURRENT_STATUS_OVER_CURRENT_DETECTED,
+                PowerManagementNotificationEvent.OVER_VOLTAGE_STATUS_OVER_VOLTAGE_DETECTED,
+                PowerManagementNotificationEvent.OVER_LOAD_STATUS_OVER_LOAD_DETECTED,
+                PowerManagementNotificationEvent.LOAD_ERROR,
+            },
+            any_available_cc_specific={
+                (CC_SPECIFIC_NOTIFICATION_TYPE, NotificationType.POWER_MANAGEMENT)
+            },
+        ),
+        allow_multi=True,
+        entity_description=NotificationZWaveJSEntityDescription(
+            # NotificationType 8: Power Management - State Id's 6, 7, 8, 9 (power status)
+            key=NOTIFICATION_POWER_MANAGEMENT,
+            states={
+                PowerManagementNotificationEvent.OVER_CURRENT_STATUS_OVER_CURRENT_DETECTED,
+                PowerManagementNotificationEvent.OVER_VOLTAGE_STATUS_OVER_VOLTAGE_DETECTED,
+                PowerManagementNotificationEvent.OVER_LOAD_STATUS_OVER_LOAD_DETECTED,
+                PowerManagementNotificationEvent.LOAD_ERROR,
+            },
+            device_class=BinarySensorDeviceClass.SAFETY,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+        entity_class=ZWaveNotificationBinarySensor,
+    ),
+    NewZWaveDiscoverySchema(
+        platform=Platform.BINARY_SENSOR,
+        primary_value=ZWaveValueDiscoverySchema(
+            command_class={CommandClass.NOTIFICATION},
+            type={ValueType.NUMBER},
+            any_available_states_keys={
+                PowerManagementNotificationEvent.BATTERY_MAINTENANCE_STATUS_REPLACE_BATTERY_SOON,
+                PowerManagementNotificationEvent.BATTERY_MAINTENANCE_STATUS_REPLACE_BATTERY_NOW,
+                PowerManagementNotificationEvent.BATTERY_MAINTENANCE_STATUS_BATTERY_FLUID_IS_LOW,
+                PowerManagementNotificationEvent.BATTERY_LEVEL_STATUS_CHARGE_BATTERY_SOON,
+                PowerManagementNotificationEvent.BATTERY_LEVEL_STATUS_CHARGE_BATTERY_NOW,
+            },
+            any_available_cc_specific={
+                (CC_SPECIFIC_NOTIFICATION_TYPE, NotificationType.POWER_MANAGEMENT)
+            },
+        ),
+        allow_multi=True,
+        entity_description=NotificationZWaveJSEntityDescription(
+            # NotificationType 8: Power Management -
+            # State Id's 10, 11, 17 (battery maintenance), 14, 15 (battery level)
+            key=NOTIFICATION_POWER_MANAGEMENT,
+            states={
+                PowerManagementNotificationEvent.BATTERY_MAINTENANCE_STATUS_REPLACE_BATTERY_SOON,
+                PowerManagementNotificationEvent.BATTERY_MAINTENANCE_STATUS_REPLACE_BATTERY_NOW,
+                PowerManagementNotificationEvent.BATTERY_MAINTENANCE_STATUS_BATTERY_FLUID_IS_LOW,
+                PowerManagementNotificationEvent.BATTERY_LEVEL_STATUS_CHARGE_BATTERY_SOON,
+                PowerManagementNotificationEvent.BATTERY_LEVEL_STATUS_CHARGE_BATTERY_NOW,
+            },
+            device_class=BinarySensorDeviceClass.BATTERY,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+        entity_class=ZWaveNotificationBinarySensor,
+    ),
+    NewZWaveDiscoverySchema(
+        platform=Platform.BINARY_SENSOR,
+        primary_value=ZWaveValueDiscoverySchema(
+            command_class={CommandClass.NOTIFICATION},
+            type={ValueType.NUMBER},
+            any_available_states_keys={
+                PowerManagementNotificationEvent.BATTERY_LOAD_STATUS_BATTERY_IS_CHARGING
+            },
+            any_available_cc_specific={
+                (CC_SPECIFIC_NOTIFICATION_TYPE, NotificationType.POWER_MANAGEMENT)
+            },
+        ),
+        allow_multi=True,
+        entity_description=NotificationZWaveJSEntityDescription(
+            # NotificationType 8: Power Management - State Id 12 (Battery is charging)
+            key=NOTIFICATION_POWER_MANAGEMENT,
+            states={
+                PowerManagementNotificationEvent.BATTERY_LOAD_STATUS_BATTERY_IS_CHARGING
+            },
+            device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+        entity_class=ZWaveNotificationBinarySensor,
+    ),
+    NewZWaveDiscoverySchema(
+        platform=Platform.BINARY_SENSOR,
+        primary_value=ZWaveValueDiscoverySchema(
+            command_class={CommandClass.NOTIFICATION},
+            type={ValueType.NUMBER},
+            any_available_cc_specific={
+                (CC_SPECIFIC_NOTIFICATION_TYPE, NotificationType.POWER_MANAGEMENT)
+            },
+        ),
+        allow_multi=True,
+        entity_description=NotificationZWaveJSEntityDescription(
+            # NotificationType 8: Power Management - All other State Id's
+            key=NOTIFICATION_POWER_MANAGEMENT,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            not_states={
+                PowerManagementNotificationEvent.IDLE,
+                PowerManagementNotificationEvent.MAINS_STATUS_AC_MAINS_RE_CONNECTED,
+                PowerManagementNotificationEvent.OVER_CURRENT_STATUS_OVER_CURRENT_DETECTED,
+                PowerManagementNotificationEvent.OVER_VOLTAGE_STATUS_OVER_VOLTAGE_DETECTED,
+                PowerManagementNotificationEvent.OVER_LOAD_STATUS_OVER_LOAD_DETECTED,
+                PowerManagementNotificationEvent.LOAD_ERROR,
+                PowerManagementNotificationEvent.BATTERY_MAINTENANCE_STATUS_REPLACE_BATTERY_SOON,
+                PowerManagementNotificationEvent.BATTERY_MAINTENANCE_STATUS_REPLACE_BATTERY_NOW,
+                PowerManagementNotificationEvent.BATTERY_MAINTENANCE_STATUS_BATTERY_FLUID_IS_LOW,
+                PowerManagementNotificationEvent.BATTERY_LEVEL_STATUS_CHARGE_BATTERY_SOON,
+                PowerManagementNotificationEvent.BATTERY_LEVEL_STATUS_CHARGE_BATTERY_NOW,
+                PowerManagementNotificationEvent.BATTERY_LOAD_STATUS_BATTERY_IS_CHARGING,
             },
         ),
         entity_class=ZWaveNotificationBinarySensor,
