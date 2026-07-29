@@ -10,6 +10,7 @@ from zwave_js_server.const.command_class.lock import DOOR_STATUS_PROPERTY
 from zwave_js_server.const.command_class.notification import (
     CC_SPECIFIC_NOTIFICATION_TYPE,
     AccessControlNotificationEvent,
+    HeatAlarmNotificationEvent,
     NotificationEvent,
     NotificationType,
     PowerManagementNotificationEvent,
@@ -75,6 +76,17 @@ NOTIFICATION_WATER_VALVE = "15"
 NOTIFICATION_WEATHER = "16"
 NOTIFICATION_IRRIGATION = "17"
 NOTIFICATION_GAS = "18"
+
+# Generic device classes where heat notifications represent primary
+# functionality rather than diagnostic.
+# https://github.com/zwave-js/backlog/issues/119#issuecomment-3096168116
+HEAT_PRIMARY_DEVICE_CLASSES: set[str | int] = {
+    "Appliance",
+    "Notification Sensor",
+    "Thermostat",
+    "Multilevel Sensor",
+    "Alarm Sensor",
+}
 
 # Deprecated/legacy synthetic Access Control door state notification
 # event IDs that don't exist in zwave-js-server
